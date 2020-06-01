@@ -1,0 +1,80 @@
+---
+title: "Peer-graded Assignment: Prediction Assignment Writeup"
+author: "Shiva Pathak"
+date: "June 1, 2020"
+output: html_document
+---
+##Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+##Data loading and processing
+
+```{r warning=FALSE,cache=TRUE}
+setwd("D:/Downloads/R")
+url_train="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+url_test="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(url_train,destfile="training_data.csv")
+download.file(url_test,destfile="testing_data.csv")
+library(readr)
+training<-read.csv("D:/Downloads/R/training_data.csv",na.strings = c("NA", "#DIV/0!", ""))
+testing <- read.csv("D:/Downloads/R/testing_data.csv",na.strings = c("NA", "#DIV/0!", ""))
+```
+
+###Removing columns that contains NA values and irrelevant variables
+
+```{r warning=FALSE,cache=TRUE}
+training <- training[, which(colSums(is.na(training)) == 0)] 
+testing <- testing[, which(colSums(is.na(testing)) == 0)]
+training <- training[,-c(1:7)] ##the first 7 columns are variables that has no relationship with "class"
+testing <- testing[,-c(1:7)]
+```
+
+###Partioning the training set into training and crossvalidation datasets
+```{r warning=FALSE, cache=TRUE}
+library(caret)
+set.seed(888)
+training = data.frame(training)
+inTrain <- createDataPartition(training$classe, p=0.70, list=F)
+train <- training[inTrain, ]
+validation <- training[-inTrain, ]
+```
+
+##Building model and cross validation
+
+###Modelling with regression tree ("rpart")
+```{r warning=FALSE, cache=TRUE}
+fit1 <- train(classe ~ ., method="rpart", data=train)
+val1 <- predict(fit1, validation)
+confusionMatrix(validation$classe, val1)
+```
+
+###Modelling with random forest ("rf")
+```{r warning=FALSE, cache=TRUE}
+fit2 <- train(classe ~ ., method="rf", data=train, prox=TRUE,ntree=250)
+val2 <- predict(fit2, validation)
+confusionMatrix(validation$classe, val2)
+```
+
+###Modelling with boosted trees ("gbm")
+```{r warning=FALSE, cache=TRUE}
+fit3 <- train(classe ~ ., method="gbm", data=train,trControl=trainControl(method = "repeatedcv", number = 5, repeats = 1),verbose=FALSE)
+val3 <- predict(fit3, validation)
+confusionMatrix(validation$classe, val3)
+```
+
+The above result show that the random forest model has the highest accuracy in cross validation. Therefore, we will use the random forest model for predicting test samples.
+
+##Prediction
+We used the random forest model for prediction
+```{r warning=FALSE, cache=TRUE}
+pred <- predict(fit2, newdata=testing)
+pred
+```
+
+##Appendix
+
+###Plotting decision tree(method="rpart")
+```{r warning=FALSE, echo=FALSE,cache=TRUE}
+plot(fit1$finalModel, uniform=TRUE,main="Classification Tree")
+text(fit1$finalModel, use.n=TRUE, all=TRUE, cex=0.8)
+```
